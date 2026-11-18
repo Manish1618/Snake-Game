@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: snake-game-ayush
+    runtime: static
+    buildCommand: echo "no build"
+    staticPublishPath: .
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: no-cache

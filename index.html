@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Snake Game | Ayush Kumar</title>
+<meta name="author" content="Ayush Kumar">
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:#121218;color:#e6e6e6;font-family:ui-monospace,Menlo,Consolas,monospace;overflow:hidden;touch-action:none;user-select:none}
+  #wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:10px;padding:10px}
+  #hud{display:flex;justify-content:space-between;width:100%;max-width:600px;font-weight:bold;font-size:16px}
+  canvas{display:block;border-radius:8px;background:#121218;box-shadow:0 0 0 2px #22222c}
+  #pad{display:grid;grid-template-columns:repeat(3,64px);grid-template-rows:repeat(2,52px);gap:6px}
+  #pad button{background:#22222c;color:#e6e6e6;border:0;border-radius:10px;font-size:22px;font-family:inherit}
+  #pad button:active{background:#33333f}
+  #up{grid-column:2}#left{grid-column:1;grid-row:2}#down{grid-column:2;grid-row:2}#right{grid-column:3;grid-row:2}
+  #hint{font-size:12px;opacity:.6;text-align:center}
+  #credit{font-size:11px;opacity:.45;text-align:center;letter-spacing:.04em}
+  @media (hover:hover) and (pointer:fine){#pad{display:none}}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hud"><span id="score">Score: 0</span><span id="high">High: 0</span></div>
+  <canvas id="c"></canvas>
+  <div id="pad">
+    <button id="up">▲</button><button id="left">◀</button><button id="down">▼</button><button id="right">▶</button>
+  </div>
+  <div id="hint">Arrows/WASD or swipe · P / tap to pause · R / tap to restart</div>
+  <div id="credit">Made by Ayush Kumar · 251151004038 · B.Tech CSE, 2nd Year</div>
+</div>
+<script>
+const COLS=25, ROWS=20, BASE_FPS=8, MAX_FPS=20;
+const C={grid:'#1c1c24',head:'#50dc78',body:'#28a05a',apple:'#e63c3c',leaf:'#3cb43c'};
+const cv=document.getElementById('c'), ctx=cv.getContext('2d');
+let CELL=24;
+
+function fit(){
+  const maxW=Math.min(window.innerWidth-20,600);
+  const padH=matchMedia('(hover:hover) and (pointer:fine)').matches?0:130;
+  const maxH=window.innerHeight-80-padH;
+  CELL=Math.max(10,Math.floor(Math.min(maxW/COLS,maxH/ROWS)));
+  const dpr=window.devicePixelRatio||1;
+  cv.width=COLS*CELL*dpr; cv.height=ROWS*CELL*dpr;
+  cv.style.width=COLS*CELL+'px'; cv.style.height=ROWS*CELL+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  draw();
+}
+
+let high=0; try{high=+localStorage.getItem('snakeHigh')||0}catch(e){}
+let g;
+function reset(){
+  const cx=COLS>>1, cy=ROWS>>1;
+  g={snake:[[cx,cy],[cx-1,cy],[cx-2,cy]],dir:[1,0],queue:[],score:0,over:false,paused:false,started:false};
+  g.apple=spawn();
+}
+function spawn(){
+  const occ=new Set(g.snake.map(p=>p[0]+','+p[1])), free=[];
+  for(let x=0;x<COLS;x++)for(let y=0;y<ROWS;y++)if(!occ.has(x+','+y))free.push([x,y]);
+  return free.length?free[Math.random()*free.length|0]:null;
+}
+function turn(d){
+  if(g.over) return;
+  g.started=true;
+  const last=g.queue.length?g.queue[g.queue.length-1]:g.dir;
+  if((d[0]!==last[0]||d[1]!==last[1]) && (d[0]!==-last[0]||d[1]!==-last[1]) && g.queue.length<3) g.queue.push(d);
+}
+function endGame(){g.over=true; if(g.score>high){high=g.score; try{localStorage.setItem('snakeHigh',high)}catch(e){}}}
+function step(){
+  if(g.over||g.paused||!g.started) return;
+  if(g.queue.length) g.dir=g.queue.shift();
+  const [hx,hy]=g.snake[0], head=[hx+g.dir[0],hy+g.dir[1]];
+  const wall=head[0]<0||head[0]>=COLS||head[1]<0||head[1]>=ROWS;
+  const eating=g.apple&&head[0]===g.apple[0]&&head[1]===g.apple[1];
+  const body=eating?g.snake:g.snake.slice(0,-1);
+  if(wall||body.some(p=>p[0]===head[0]&&p[1]===head[1])){endGame();return}
+  g.snake.unshift(head);
+  if(eating){g.score++; g.apple=spawn(); if(!g.apple) endGame();}
+  else g.snake.pop();
+}
+const fps=()=>Math.min(MAX_FPS,BASE_FPS+Math.floor(g.score/3));
+
+function rr(x,y,w,h,r){ctx.beginPath();ctx.roundRect?ctx.roundRect(x,y,w,h,r):ctx.rect(x,y,w,h);ctx.fill()}
+function draw(){
+  if(!g) return;
+  ctx.fillStyle='#121218'; ctx.fillRect(0,0,COLS*CELL,ROWS*CELL);
+  ctx.fillStyle=C.grid;
+  for(let x=0;x<COLS;x++)for(let y=0;y<ROWS;y++)if((x+y)%2)ctx.fillRect(x*CELL,y*CELL,CELL,CELL);
+  if(g.apple){
+    const cx=g.apple[0]*CELL+CELL/2, cy=g.apple[1]*CELL+CELL/2;
+    ctx.fillStyle=C.apple; ctx.beginPath(); ctx.arc(cx,cy,CELL/2-2,0,7); ctx.fill();
+    ctx.fillStyle=C.leaf; ctx.beginPath(); ctx.ellipse(cx+CELL*.17,cy-CELL*.38,CELL*.17,CELL*.1,0,0,7); ctx.fill();
+  }
+  g.snake.forEach(([x,y],i)=>{ctx.fillStyle=i?C.body:C.head; rr(x*CELL+1,y*CELL+1,CELL-2,CELL-2,CELL/4)});
+  const [hx,hy]=g.snake[0],[dx,dy]=g.dir, cx=hx*CELL+CELL/2, cy=hy*CELL+CELL/2, o=CELL*.21;
+  ctx.fillStyle='#000';
+  for(const s of[-1,1]){ctx.beginPath();ctx.arc(cx+dx*o-dy*s*o,cy+dy*o+dx*s*o,CELL/8,0,7);ctx.fill()}
+  document.getElementById('score').textContent='Score: '+g.score;
+  document.getElementById('high').textContent='High: '+high;
+  let msg=g.over?'GAME OVER':g.paused?'PAUSED':!g.started?'PRESS A DIRECTION':null;
+  if(msg){
+    ctx.fillStyle='rgba(0,0,0,.55)'; ctx.fillRect(0,0,COLS*CELL,ROWS*CELL);
+    ctx.fillStyle='#e6e6e6'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.font='bold '+Math.round(CELL*1.1)+'px ui-monospace,monospace';
+    ctx.fillText(msg,COLS*CELL/2,ROWS*CELL/2-(g.over?CELL*.7:0));
+    if(g.over){ctx.font=Math.round(CELL*.65)+'px ui-monospace,monospace';ctx.fillText('R or tap to restart',COLS*CELL/2,ROWS*CELL/2+CELL*.8)}
+  }
+}
+
+let last=0;
+function loop(t){
+  if(t-last>=1000/fps()){last=t; step(); draw();}
+  requestAnimationFrame(loop);
+}
+
+const KEYS={ArrowUp:[0,-1],w:[0,-1],W:[0,-1],ArrowDown:[0,1],s:[0,1],S:[0,1],ArrowLeft:[-1,0],a:[-1,0],A:[-1,0],ArrowRight:[1,0],d:[1,0],D:[1,0]};
+addEventListener('keydown',e=>{
+  if(KEYS[e.key]){e.preventDefault();turn(KEYS[e.key])}
+  else if((e.key==='r'||e.key==='R')&&g.over){reset();draw()}
+  else if((e.key==='p'||e.key==='P')&&!g.over&&g.started){g.paused=!g.paused;draw()}
+});
+const bind=(id,d)=>document.getElementById(id).addEventListener('pointerdown',e=>{e.preventDefault();turn(d)});
+bind('up',[0,-1]);bind('down',[0,1]);bind('left',[-1,0]);bind('right',[1,0]);
+
+let sx=null,sy=null;
+cv.addEventListener('touchstart',e=>{const t=e.touches[0];sx=t.clientX;sy=t.clientY},{passive:true});
+cv.addEventListener('touchend',e=>{
+  if(sx===null) return;
+  const t=e.changedTouches[0], dx=t.clientX-sx, dy=t.clientY-sy; sx=null;
+  if(Math.max(Math.abs(dx),Math.abs(dy))<20){ // tap
+    if(g.over){reset();draw()} else if(g.started){g.paused=!g.paused;draw()}
+    return;
+  }
+  turn(Math.abs(dx)>Math.abs(dy)?[Math.sign(dx),0]:[0,Math.sign(dy)]);
+});
+cv.addEventListener('click',()=>{if(g.over&&!('ontouchstart'in window)){reset();draw()}});
+
+reset(); addEventListener('resize',fit); fit(); requestAnimationFrame(loop);
+</script>
+</body>
+</html>
