@@ -7,7 +7,7 @@ A classic Snake game written in Python with **pygame** (`snake.py`), plus a brow
 static site using `render.yaml`.
 
 ## Play
-- **Online:** the Render URL (see repo description)
+- **Online:** https://snake-game-ayush.onrender.com
 - **Desktop (Python):**
   ```bash
   pip install pygame
